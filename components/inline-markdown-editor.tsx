@@ -293,6 +293,19 @@ export function InlineMarkdownEditor() {
     setBlocks(parseMarkdownToBlocks(newDoc.content))
   }, [])
 
+  const handleMergeBlocks = useCallback(() => {
+    const mergedMarkdown = blocks.map((b) => b.raw).join("\n\n")
+    const mergedBlock = {
+      id: `block-${Date.now()}`,
+      type: "paragraph" as const,
+      content: mergedMarkdown,
+      raw: mergedMarkdown,
+    }
+    setBlocks([mergedBlock])
+    setEditingBlockId(mergedBlock.id)
+    setEditMode("edit")
+  }, [blocks])
+
   return (
     <div className="flex min-h-screen" style={getBackgroundStyle()}>
       <DocumentSidebar
@@ -307,7 +320,7 @@ export function InlineMarkdownEditor() {
         <div className={`${getContainerClasses()} py-8 md:py-16`}>
           <header className="mb-8 md:mb-12 flex items-center justify-end">
             <div className="flex items-center gap-3">
-              <EditModeToggle mode={editMode} onChange={setEditMode} />
+              <EditModeToggle mode={editMode} onChange={setEditMode} onMerge={handleMergeBlocks} />
               <SettingsPanel onSettingsChange={handleSettingsChange} />
             </div>
           </header>

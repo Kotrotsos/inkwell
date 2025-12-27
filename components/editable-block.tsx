@@ -49,7 +49,11 @@ export function EditableBlock({
   useEffect(() => {
     if (editMode === "edit") {
       setIsEditing(true)
-    } else if (editMode === "read") {
+    } else if (editMode === "read" || editMode === "quick") {
+      // When switching out of edit mode, re-parse content to handle merged blocks
+      if (isEditing) {
+        onUpdate(block.id, editContent)
+      }
       setIsEditing(false)
     }
   }, [editMode])
@@ -89,11 +93,10 @@ export function EditableBlock({
     if (editMode !== "edit") {
       setIsEditing(false)
     }
-    if (editContent !== block.raw) {
-      onUpdate(block.id, editContent)
-    }
+    // Always call onUpdate to re-parse content (handles merged blocks)
+    onUpdate(block.id, editContent)
     onBlurred?.()
-  }, [editContent, block.raw, block.id, onUpdate, onBlurred, editMode])
+  }, [editContent, block.id, onUpdate, onBlurred, editMode])
 
   const handleBlur = (e: React.FocusEvent) => {
     if (isTouchDevice || editMode === "edit") {

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 
 export type EditMode = "quick" | "edit" | "read"
@@ -7,10 +8,23 @@ export type EditMode = "quick" | "edit" | "read"
 interface EditModeToggleProps {
   mode: EditMode
   onChange: (mode: EditMode) => void
+  onMerge?: () => void
 }
 
-export function EditModeToggle({ mode, onChange }: EditModeToggleProps) {
+export function EditModeToggle({ mode, onChange, onMerge }: EditModeToggleProps) {
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  const handleMergeClick = () => {
+    setShowConfirm(true)
+  }
+
+  const handleConfirm = () => {
+    setShowConfirm(false)
+    onMerge?.()
+  }
+
   return (
+    <>
     <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
       {/* Quick edit mode - click to edit individual sections */}
       <button
@@ -86,6 +100,66 @@ export function EditModeToggle({ mode, onChange }: EditModeToggleProps) {
           <circle cx="12" cy="12" r="3" />
         </svg>
       </button>
+
+      {/* Divider */}
+      <div className="w-px h-4 bg-border mx-0.5" />
+
+      {/* Merge button */}
+      <button
+        onClick={handleMergeClick}
+        className={cn(
+          "w-8 h-8 rounded-md flex items-center justify-center",
+          "transition-colors",
+          "text-muted-foreground hover:text-foreground",
+        )}
+        title="Merge all sections into one"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M8 6h13" />
+          <path d="M8 12h13" />
+          <path d="M8 18h13" />
+          <path d="M3 6h.01" />
+          <path d="M3 12h.01" />
+          <path d="M3 18h.01" />
+        </svg>
+      </button>
     </div>
+
+    {/* Confirmation dialog */}
+    {showConfirm && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-foreground/20 backdrop-blur-sm" onClick={() => setShowConfirm(false)} />
+        <div className="relative bg-background border border-border rounded-xl shadow-lg p-6 max-w-sm mx-4">
+          <h3 className="text-lg font-medium text-foreground mb-2">Merge sections?</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            This will combine all sections into a single editable block. This action cannot be undone.
+          </p>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setShowConfirm(false)}
+              className="px-4 py-2 text-sm rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="px-4 py-2 text-sm rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity"
+            >
+              Merge
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

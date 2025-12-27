@@ -284,6 +284,13 @@ export const DocumentSidebar = forwardRef<DocumentSidebarRef, DocumentSidebarPro
 
       {/* Sidebar panel */}
       <aside
+        onMouseLeave={() => {
+          if (!sidebarState.isPinned && sidebarState.isOpen) {
+            const newState = { ...sidebarState, isOpen: false }
+            setSidebarState(newState)
+            saveSidebarState(newState)
+          }
+        }}
         className={cn(
           "fixed left-0 top-0 h-full z-40",
           "w-72 bg-background border-r border-border",
