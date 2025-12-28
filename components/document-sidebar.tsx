@@ -237,21 +237,23 @@ export const DocumentSidebar = forwardRef<DocumentSidebarRef, DocumentSidebarPro
 
   return (
     <>
-      {/* Toggle button - always visible on left */}
-      <button
-        onClick={toggleSidebar}
-        className={cn(
-          "fixed left-4 top-4 z-50",
-          "w-9 h-9 rounded-lg",
-          "flex items-center justify-center",
-          "bg-background/80 backdrop-blur-sm",
-          "border border-border",
-          "text-muted-foreground hover:text-foreground",
-          "transition-all duration-200",
-          "hover:bg-muted",
-        )}
-        aria-label={sidebarState.isOpen ? "Close sidebar" : "Open sidebar"}
-      >
+      {/* Toggle button - hidden when pinned, moves with sidebar when open */}
+      {!sidebarState.isPinned && (
+        <button
+          onClick={toggleSidebar}
+          className={cn(
+            "fixed top-4 z-50",
+            "w-9 h-9 rounded-lg",
+            "flex items-center justify-center",
+            "bg-background/80 backdrop-blur-sm",
+            "border border-border",
+            "text-muted-foreground hover:text-foreground",
+            "transition-all duration-300 ease-out",
+            "hover:bg-muted",
+            sidebarState.isOpen ? "left-[296px]" : "left-4",
+          )}
+          aria-label={sidebarState.isOpen ? "Close sidebar" : "Open sidebar"}
+        >
         <svg
           width="18"
           height="18"
@@ -275,7 +277,8 @@ export const DocumentSidebar = forwardRef<DocumentSidebarRef, DocumentSidebarPro
             </>
           )}
         </svg>
-      </button>
+        </button>
+      )}
 
       {/* Backdrop for non-pinned sidebar on mobile */}
       {sidebarState.isOpen && !sidebarState.isPinned && (

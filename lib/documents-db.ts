@@ -1,3 +1,5 @@
+export type SyncStatus = 'synced' | 'pending' | 'conflict'
+
 export interface Document {
   id: string
   title: string
@@ -5,6 +7,9 @@ export interface Document {
   folderId: string | null
   createdAt: number
   updatedAt: number
+  serverId?: string | null
+  syncStatus?: SyncStatus
+  lastSyncedAt?: number | null
 }
 
 export interface Folder {
@@ -12,6 +17,9 @@ export interface Folder {
   name: string
   parentId: string | null
   createdAt: number
+  serverId?: string | null
+  syncStatus?: SyncStatus
+  lastSyncedAt?: number | null
 }
 
 export interface SidebarState {
@@ -20,7 +28,7 @@ export interface SidebarState {
 }
 
 const DB_NAME = "inkwell-documents"
-const DB_VERSION = 1
+const DB_VERSION = 2
 const DOCUMENTS_STORE = "documents"
 const FOLDERS_STORE = "folders"
 const SIDEBAR_STORE = "sidebar"
@@ -32,7 +40,7 @@ function openDB(): Promise<IDBDatabase> {
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve(request.result)
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result
       if (!db.objectStoreNames.contains(DOCUMENTS_STORE)) {
         db.createObjectStore(DOCUMENTS_STORE, { keyPath: "id" })
@@ -92,6 +100,23 @@ export async function deleteDocument(id: string): Promise<void> {
   })
 }
 
+export async function getPendingDocuments(): Promise<Document[]> {
+  const docs = await getAllDocuments()
+  return docs.filter(doc => doc.syncStatus === 'pending')
+}
+
+export async function markDocumentSynced(id: string, serverId: string): Promise<void> {
+  const doc = await getDocument(id)
+  if (doc) {
+    await saveDocument({
+      ...doc,
+      serverId,
+      syncStatus: 'synced',
+      lastSyncedAt: Date.now(),
+    })
+  }
+}
+
 // Folders
 export async function saveFolder(folder: Folder): Promise<void> {
   const db = await openDB()
@@ -101,6 +126,17 @@ export async function saveFolder(folder: Folder): Promise<void> {
     const request = store.put(folder)
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve()
+  })
+}
+
+export async function getFolder(id: string): Promise<Folder | null> {
+  const db = await openDB()
+  return new Promise((resolve) => {
+    const tx = db.transaction(FOLDERS_STORE, "readonly")
+    const store = tx.objectStore(FOLDERS_STORE)
+    const request = store.get(id)
+    request.onerror = () => resolve(null)
+    request.onsuccess = () => resolve(request.result || null)
   })
 }
 
@@ -124,6 +160,23 @@ export async function deleteFolder(id: string): Promise<void> {
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve()
   })
+}
+
+export async function getPendingFolders(): Promise<Folder[]> {
+  const folders = await getAllFolders()
+  return folders.filter(folder => folder.syncStatus === 'pending')
+}
+
+export async function markFolderSynced(id: string, serverId: string): Promise<void> {
+  const folder = await getFolder(id)
+  if (folder) {
+    await saveFolder({
+      ...folder,
+      serverId,
+      syncStatus: 'synced',
+      lastSyncedAt: Date.now(),
+    })
+  }
 }
 
 // Sidebar state
@@ -151,4 +204,16 @@ export async function loadSidebarState(): Promise<SidebarState> {
   } catch {
     return { isOpen: false, isPinned: false }
   }
+}
+
+// Clear all local data (for logout)
+export async function clearAllData(): Promise<void> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([DOCUMENTS_STORE, FOLDERS_STORE], "readwrite")
+    tx.objectStore(DOCUMENTS_STORE).clear()
+    tx.objectStore(FOLDERS_STORE).clear()
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }

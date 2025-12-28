@@ -6,6 +6,7 @@ import { InsertZone } from "./insert-zone"
 import { SettingsPanel } from "./settings-panel"
 import { DocumentSidebar, type DocumentSidebarRef } from "./document-sidebar"
 import { EditModeToggle, type EditMode } from "./edit-mode-toggle"
+import { UserMenu } from "./auth/user-menu"
 import { parseMarkdownToBlocks, type Block } from "@/lib/markdown-parser"
 import { type EditorSettings, defaultSettings } from "@/lib/settings-db"
 import { type Document, saveDocument, getAllDocuments, getDocument } from "@/lib/documents-db"
@@ -322,6 +323,7 @@ export function InlineMarkdownEditor() {
             <div className="flex items-center gap-3">
               <EditModeToggle mode={editMode} onChange={setEditMode} onMerge={handleMergeBlocks} />
               <SettingsPanel onSettingsChange={handleSettingsChange} />
+              <UserMenu />
             </div>
           </header>
 

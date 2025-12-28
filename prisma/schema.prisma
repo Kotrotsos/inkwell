@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  documents    Document[]
+  folders      Folder[]
+  settings     Settings?
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @db.Text
+  folderId  String?
+  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  localId   String?
+
+  @@index([userId])
+  @@index([folderId])
+}
+
+model Folder {
+  id        String     @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Folder?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Folder[]   @relation("FolderHierarchy")
+  documents Document[]
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  localId   String?
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+model Settings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fontFamily      String   @default("serif")
+  fontSize        String   @default("medium")
+  lineHeight      String   @default("normal")
+  theme           String   @default("system")
+  contentWidth    String   @default("default")
+  backgroundColor String   @default("gray")
+  updatedAt       DateTime @updatedAt
+}

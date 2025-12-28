@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Source_Serif_4, Geist_Mono, Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { Providers } from "@/components/providers"
 import "./globals.css"
 
 const _sourceSerif = Source_Serif_4({ subsets: ["latin"], variable: "--font-source-serif" })
@@ -45,7 +46,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-background" suppressHydrationWarning>
       <body className={`antialiased ${_sourceSerif.variable} ${_geistMono.variable} ${_inter.variable}`}>
-        {children}
+        <Providers>
+          {children}
+        </Providers>
         <Analytics />
       </body>
     </html>
