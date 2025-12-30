@@ -1,15 +1,15 @@
 "use client"
 
+import type React from "react"
 import { useState, useCallback, useEffect, useRef } from "react"
-import { EditableBlock } from "./editable-block"
-import { InsertZone } from "./insert-zone"
 import { SettingsPanel } from "./settings-panel"
 import { DocumentSidebar, type DocumentSidebarRef } from "./document-sidebar"
-import { EditModeToggle, type EditMode } from "./edit-mode-toggle"
 import { UserMenu } from "./auth/user-menu"
+import { RenderedBlock } from "./rendered-block"
 import { parseMarkdownToBlocks, type Block } from "@/lib/markdown-parser"
 import { type EditorSettings, defaultSettings } from "@/lib/settings-db"
 import { type Document, saveDocument, getAllDocuments, getDocument } from "@/lib/documents-db"
+import { cn } from "@/lib/utils"
 
 const defaultMarkdown = `# Welcome to Inkwell
 
@@ -46,15 +46,15 @@ console.log(greeting);
 Start writing. Click anywhere to begin.`
 
 export function InlineMarkdownEditor() {
+  const [markdown, setMarkdown] = useState(defaultMarkdown)
   const [blocks, setBlocks] = useState<Block[]>(() => parseMarkdownToBlocks(defaultMarkdown))
-  const [newlyInsertedId, setNewlyInsertedId] = useState<string | null>(null)
-  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
   const [settings, setSettings] = useState<EditorSettings>(defaultSettings)
-  const [editMode, setEditMode] = useState<EditMode>("quick")
   const [currentDoc, setCurrentDoc] = useState<Document | null>(null)
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const sidebarRef = useRef<DocumentSidebarRef>(null)
-  const blocksRef = useRef<Block[]>(blocks)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const markdownRef = useRef(markdown)
   const currentDocRef = useRef<Document | null>(currentDoc)
 
   const extractTitleFromBlocks = useCallback((blocks: Block[]): string | null => {
@@ -71,8 +71,8 @@ export function InlineMarkdownEditor() {
   }, [])
 
   useEffect(() => {
-    blocksRef.current = blocks
-  }, [blocks])
+    markdownRef.current = markdown
+  }, [markdown])
 
   useEffect(() => {
     currentDocRef.current = currentDoc
@@ -80,8 +80,7 @@ export function InlineMarkdownEditor() {
 
   const saveCurrentDocument = useCallback(async () => {
     if (currentDocRef.current) {
-      const markdown = blocksRef.current.map((b) => b.raw).join("\n\n")
-      const updatedDoc = { ...currentDocRef.current, content: markdown, updatedAt: Date.now() }
+      const updatedDoc = { ...currentDocRef.current, content: markdownRef.current, updatedAt: Date.now() }
       await saveDocument(updatedDoc)
     }
   }, [])
@@ -106,17 +105,14 @@ export function InlineMarkdownEditor() {
   useEffect(() => {
     if (currentDoc) {
       const timeout = setTimeout(async () => {
-        const markdown = blocks.map((b) => b.raw).join("\n\n")
         const extractedTitle = extractTitleFromBlocks(blocks)
         const updatedDoc = {
           ...currentDoc,
           content: markdown,
-          // Update title if we found a heading and current title is "Untitled X" or different
           title: extractedTitle || currentDoc.title,
           updatedAt: Date.now(),
         }
         await saveDocument(updatedDoc)
-        // Update local state if title changed
         if (extractedTitle && extractedTitle !== currentDoc.title) {
           setCurrentDoc(updatedDoc)
           sidebarRef.current?.refresh()
@@ -124,7 +120,7 @@ export function InlineMarkdownEditor() {
       }, 300)
       return () => clearTimeout(timeout)
     }
-  }, [blocks, currentDoc, extractTitleFromBlocks])
+  }, [markdown, blocks, currentDoc, extractTitleFromBlocks])
 
   const getContentClasses = () => {
     const classes: string[] = []
@@ -191,87 +187,49 @@ export function InlineMarkdownEditor() {
     }
   }
 
-  const updateBlock = useCallback((id: string, newContent: string) => {
-    setBlocks((prev) => {
-      const blockIndex = prev.findIndex((b) => b.id === id)
-      if (blockIndex === -1) return prev
+  const getToolbarBackgroundStyle = () => {
+    switch (settings.backgroundColor) {
+      case "gray":
+        return { backgroundColor: "#E8E8EC" }
+      case "warm":
+        return { backgroundColor: "#F0ECE7" }
+      case "cool":
+        return { backgroundColor: "#E8ECF0" }
+      default:
+        return {}
+    }
+  }
 
-      const newBlocks = parseMarkdownToBlocks(newContent)
-
-      if (newBlocks.length === 0) {
-        return prev.filter((b) => b.id !== id)
+  const startEditing = useCallback(() => {
+    setIsEditing(true)
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus()
+        adjustTextareaHeight()
       }
-
-      const result = [...prev]
-      result.splice(
-        blockIndex,
-        1,
-        ...newBlocks.map((b, i) => ({
-          ...b,
-          id: i === 0 ? id : `${id}-${i}-${Date.now()}`,
-        })),
-      )
-      return result
-    })
+    }, 0)
   }, [])
 
-  const addBlockAfter = useCallback((id: string) => {
-    const newId = `block-${Date.now()}`
-    setBlocks((prev) => {
-      const blockIndex = prev.findIndex((b) => b.id === id)
-      if (blockIndex === -1) return prev
+  const stopEditing = useCallback(() => {
+    setIsEditing(false)
+    setBlocks(parseMarkdownToBlocks(markdown))
+  }, [markdown])
 
-      const newBlock: Block = {
-        id: newId,
-        type: "paragraph",
-        content: "",
-        raw: "",
-      }
-
-      const result = [...prev]
-      result.splice(blockIndex + 1, 0, newBlock)
-      return result
-    })
-    setNewlyInsertedId(newId)
-    setEditingBlockId(newId)
+  const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMarkdown(e.target.value)
+    adjustTextareaHeight()
   }, [])
 
-  const insertBlockAt = useCallback((index: number) => {
-    const newId = `block-${Date.now()}`
-    setBlocks((prev) => {
-      const newBlock: Block = {
-        id: newId,
-        type: "paragraph",
-        content: "",
-        raw: "",
-      }
+  const handleTextareaBlur = useCallback(() => {
+    stopEditing()
+  }, [stopEditing])
 
-      const result = [...prev]
-      result.splice(index, 0, newBlock)
-      return result
-    })
-    setNewlyInsertedId(newId)
-    setEditingBlockId(newId)
+  const adjustTextareaHeight = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+    }
   }, [])
-
-  const handleBlockFocused = useCallback(
-    (id: string) => {
-      if (newlyInsertedId === id) {
-        setNewlyInsertedId(null)
-      }
-      setEditingBlockId(id)
-    },
-    [newlyInsertedId],
-  )
-
-  const handleBlockBlurred = useCallback(
-    (id: string) => {
-      if (editingBlockId === id) {
-        setEditingBlockId(null)
-      }
-    },
-    [editingBlockId],
-  )
 
   const handleSettingsChange = useCallback((newSettings: EditorSettings) => {
     setSettings(newSettings)
@@ -279,13 +237,14 @@ export function InlineMarkdownEditor() {
 
   const handleSelectDocument = useCallback(
     async (doc: Document) => {
-      // Save current document before switching
       await saveCurrentDocument()
-      // Fetch fresh from IndexedDB to get latest saved content
       const freshDoc = await getDocument(doc.id)
       if (freshDoc) {
+        const content = freshDoc.content || defaultMarkdown
         setCurrentDoc(freshDoc)
-        setBlocks(parseMarkdownToBlocks(freshDoc.content || defaultMarkdown))
+        setMarkdown(content)
+        setBlocks(parseMarkdownToBlocks(content))
+        setIsEditing(false)
       }
     },
     [saveCurrentDocument],
@@ -293,10 +252,11 @@ export function InlineMarkdownEditor() {
 
   const handleNewDocument = useCallback(async (folderId: string | null) => {
     const docs = await getAllDocuments()
+    const content = "# New Document\n\nStart writing here..."
     const newDoc: Document = {
       id: `doc-${Date.now()}`,
       title: `Untitled ${docs.length + 1}`,
-      content: "# New Document\n\nStart writing here...",
+      content,
       folderId: folderId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -304,21 +264,10 @@ export function InlineMarkdownEditor() {
     await saveDocument(newDoc)
     await sidebarRef.current?.refresh()
     setCurrentDoc(newDoc)
-    setBlocks(parseMarkdownToBlocks(newDoc.content))
+    setMarkdown(content)
+    setBlocks(parseMarkdownToBlocks(content))
+    setIsEditing(false)
   }, [])
-
-  const handleMergeBlocks = useCallback(() => {
-    const mergedMarkdown = blocks.map((b) => b.raw).join("\n\n")
-    const mergedBlock = {
-      id: `block-${Date.now()}`,
-      type: "paragraph" as const,
-      content: mergedMarkdown,
-      raw: mergedMarkdown,
-    }
-    setBlocks([mergedBlock])
-    setEditingBlockId(mergedBlock.id)
-    setEditMode("edit")
-  }, [blocks])
 
   return (
     <div className="flex min-h-screen" style={getBackgroundStyle()}>
@@ -335,44 +284,44 @@ export function InlineMarkdownEditor() {
         <div className={`${getContainerClasses()} py-8 md:py-16`}>
           <header className="mb-8 md:mb-12 flex items-center justify-end">
             <div className="flex items-center gap-3">
-              <EditModeToggle mode={editMode} onChange={setEditMode} onMerge={handleMergeBlocks} />
               <SettingsPanel onSettingsChange={handleSettingsChange} />
               <UserMenu />
             </div>
           </header>
 
           <article className={`prose-custom ${getContentClasses()}`}>
-            {editMode !== "read" && <InsertZone onInsert={() => insertBlockAt(0)} isFirst />}
-
-            {blocks
-              .filter((block) => {
-                const isEmpty = !block.content.trim() && newlyInsertedId !== block.id && editingBlockId !== block.id
-                return !isEmpty
-              })
-              .map((block, index, filteredBlocks) => {
-                return (
-                  <div key={block.id}>
-                    <EditableBlock
-                      block={block}
-                      onUpdate={updateBlock}
-                      onAddAfter={addBlockAfter}
-                      autoFocus={newlyInsertedId === block.id}
-                      onFocused={() => handleBlockFocused(block.id)}
-                      onBlurred={() => handleBlockBlurred(block.id)}
-                      editMode={editMode}
-                    />
-                    {editMode !== "read" && (
-                      <InsertZone
-                        onInsert={() => {
-                          const originalIndex = blocks.findIndex((b) => b.id === block.id)
-                          insertBlockAt(originalIndex + 1)
-                        }}
-                        isLast={index === filteredBlocks.length - 1}
-                      />
-                    )}
-                  </div>
-                )
-              })}
+            {isEditing ? (
+              <textarea
+                ref={textareaRef}
+                value={markdown}
+                onChange={handleTextareaChange}
+                onBlur={handleTextareaBlur}
+                className={cn(
+                  "w-full bg-muted/50 text-foreground font-mono text-base",
+                  "px-4 py-3 rounded-lg",
+                  "focus:outline-none",
+                  "resize-none overflow-hidden",
+                  "min-h-[200px]",
+                )}
+                placeholder="Type markdown here..."
+              />
+            ) : (
+              <div
+                onClick={startEditing}
+                className={cn(
+                  "cursor-text rounded-lg -mx-3 px-3 py-1",
+                  "transition-all duration-200",
+                  "hover:bg-muted/30",
+                  "min-h-[200px]",
+                )}
+              >
+                {blocks
+                  .filter((block) => block.content.trim() || block.type === "table" || block.type === "hr")
+                  .map((block) => (
+                    <RenderedBlock key={block.id} block={block} />
+                  ))}
+              </div>
+            )}
           </article>
         </div>
       </div>
