@@ -178,6 +178,19 @@ export function InlineMarkdownEditor() {
     }
   }
 
+  const getSidebarBackgroundStyle = () => {
+    switch (settings.backgroundColor) {
+      case "gray":
+        return { backgroundColor: "#E8E8EC" }
+      case "warm":
+        return { backgroundColor: "#F0ECE7" }
+      case "cool":
+        return { backgroundColor: "#E8ECF0" }
+      default:
+        return {}
+    }
+  }
+
   const updateBlock = useCallback((id: string, newContent: string) => {
     setBlocks((prev) => {
       const blockIndex = prev.findIndex((b) => b.id === id)
@@ -315,6 +328,7 @@ export function InlineMarkdownEditor() {
         onSelectDocument={handleSelectDocument}
         onNewDocument={handleNewDocument}
         onPinnedChange={setSidebarPinned}
+        backgroundStyle={getSidebarBackgroundStyle()}
       />
 
       <div className={`flex-1 transition-all duration-300 ${sidebarPinned ? "ml-72" : ""}`}>

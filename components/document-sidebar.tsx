@@ -23,6 +23,7 @@ interface DocumentSidebarProps {
   onSelectDocument: (doc: Document) => void
   onNewDocument: (folderId: string | null) => Promise<void>
   onPinnedChange?: (isPinned: boolean) => void
+  backgroundStyle?: React.CSSProperties
 }
 
 export interface DocumentSidebarRef {
@@ -30,7 +31,7 @@ export interface DocumentSidebarRef {
 }
 
 export const DocumentSidebar = forwardRef<DocumentSidebarRef, DocumentSidebarProps>(function DocumentSidebar(
-  { currentDocId, onSelectDocument, onNewDocument, onPinnedChange },
+  { currentDocId, onSelectDocument, onNewDocument, onPinnedChange, backgroundStyle },
   ref,
 ) {
   const [sidebarState, setSidebarState] = useState<SidebarState>({ isOpen: false, isPinned: false })
@@ -294,6 +295,7 @@ export const DocumentSidebar = forwardRef<DocumentSidebarRef, DocumentSidebarPro
             saveSidebarState(newState)
           }
         }}
+        style={backgroundStyle}
         className={cn(
           "fixed left-0 top-0 h-full z-40",
           "w-72 bg-background border-r border-border",
