@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const documents = await prisma.document.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       orderBy: { updatedAt: 'desc' },
     })
 
@@ -28,9 +27,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -42,7 +41,7 @@ export async function POST(request: Request) {
         content: content || '',
         folderId: folderId || null,
         localId: localId || null,
-        userId: session.user.id,
+        userId,
       },
     })
 

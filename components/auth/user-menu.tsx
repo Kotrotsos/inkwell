@@ -1,26 +1,17 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { useSession, signOut } from "next-auth/react"
-import Link from "next/link"
+import {
+  SignInButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+} from "@clerk/nextjs"
 import { cn } from "@/lib/utils"
-import { onLogout, fullSync } from "@/lib/sync"
+import { fullSync } from "@/lib/sync"
+import { useState } from "react"
 
 export function UserMenu() {
-  const { data: session, status } = useSession()
-  const [isOpen, setIsOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
 
   const handleSync = async () => {
     setSyncing(true)
@@ -33,90 +24,42 @@ export function UserMenu() {
     }
   }
 
-  const handleLogout = async () => {
-    await onLogout()
-    await signOut({ callbackUrl: "/" })
-  }
-
-  if (status === "loading") {
-    return (
-      <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
-    )
-  }
-
-  if (!session) {
-    return (
-      <Link
-        href="/login"
-        className={cn(
-          "px-3 py-1.5 rounded-lg text-sm font-medium",
-          "bg-foreground text-background",
-          "hover:opacity-90 transition-opacity"
-        )}
-      >
-        Sign in
-      </Link>
-    )
-  }
-
-  const initials = session.user.name
-    ? session.user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
-    : session.user.email[0].toUpperCase()
-
   return (
-    <div ref={menuRef} className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          "w-8 h-8 rounded-full flex items-center justify-center",
-          "bg-foreground text-background text-sm font-medium",
-          "hover:opacity-90 transition-opacity"
-        )}
-      >
-        {initials}
-      </button>
-
-      {isOpen && (
-        <div
+    <div className="flex items-center gap-2">
+      <SignedIn>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
           className={cn(
-            "absolute right-0 mt-2 w-56 rounded-lg",
-            "bg-background border border-border shadow-lg",
-            "py-1 z-50"
+            "px-2 py-1 text-xs rounded",
+            "text-muted-foreground hover:text-foreground",
+            "hover:bg-muted transition-colors",
+            "disabled:opacity-50"
           )}
         >
-          <div className="px-3 py-2 border-b border-border">
-            <p className="text-sm font-medium truncate">
-              {session.user.name || "User"}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {session.user.email}
-            </p>
-          </div>
-
+          {syncing ? "Syncing..." : "Sync"}
+        </button>
+        <UserButton
+          appearance={{
+            elements: {
+              avatarBox: "w-8 h-8",
+            },
+          }}
+        />
+      </SignedIn>
+      <SignedOut>
+        <SignInButton mode="modal">
           <button
-            onClick={handleSync}
-            disabled={syncing}
             className={cn(
-              "w-full px-3 py-2 text-left text-sm",
-              "hover:bg-muted transition-colors",
-              "disabled:opacity-50"
+              "px-3 py-1.5 rounded-lg text-sm font-medium",
+              "bg-foreground text-background",
+              "hover:opacity-90 transition-opacity"
             )}
           >
-            {syncing ? "Syncing..." : "Sync now"}
+            Sign in
           </button>
-
-          <button
-            onClick={handleLogout}
-            className={cn(
-              "w-full px-3 py-2 text-left text-sm",
-              "hover:bg-muted transition-colors",
-              "text-red-600 dark:text-red-400"
-            )}
-          >
-            Sign out
-          </button>
-        </div>
-      )}
+        </SignInButton>
+      </SignedOut>
     </div>
   )
 }

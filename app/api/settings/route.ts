@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const settings = await prisma.settings.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
     })
 
     if (!settings) {
@@ -45,9 +44,9 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -61,7 +60,7 @@ export async function PUT(request: Request) {
     } = await request.json()
 
     const settings = await prisma.settings.upsert({
-      where: { userId: session.user.id },
+      where: { userId },
       update: {
         ...(fontFamily !== undefined && { fontFamily }),
         ...(fontSize !== undefined && { fontSize }),
@@ -71,7 +70,7 @@ export async function PUT(request: Request) {
         ...(backgroundColor !== undefined && { backgroundColor }),
       },
       create: {
-        userId: session.user.id,
+        userId,
         fontFamily: fontFamily || 'serif',
         fontSize: fontSize || 'medium',
         lineHeight: lineHeight || 'normal',

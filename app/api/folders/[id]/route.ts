@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(
@@ -8,9 +7,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -19,7 +18,7 @@ export async function GET(
     const folder = await prisma.folder.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        userId,
       },
       include: {
         documents: true,
@@ -46,9 +45,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -58,7 +57,7 @@ export async function PUT(
     const existing = await prisma.folder.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        userId,
       },
     })
 
@@ -89,9 +88,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -100,7 +99,7 @@ export async function DELETE(
     const existing = await prisma.folder.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        userId,
       },
     })
 

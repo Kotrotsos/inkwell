@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const folders = await prisma.folder.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       orderBy: { createdAt: 'asc' },
     })
 
@@ -28,9 +27,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const { userId } = await auth()
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -48,7 +47,7 @@ export async function POST(request: Request) {
         name,
         parentId: parentId || null,
         localId: localId || null,
-        userId: session.user.id,
+        userId,
       },
     })
 
