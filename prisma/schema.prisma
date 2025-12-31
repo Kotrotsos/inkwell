@@ -17,6 +17,21 @@ model User {
   documents    Document[]
   folders      Folder[]
   settings     Settings?
+  media        Media[]
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  size      Int
+  data      String   @db.Text
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  localId   String?
+
+  @@index([userId])
 }
 
 model Document {

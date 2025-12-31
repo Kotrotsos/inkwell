@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Settings, X } from "lucide-react"
 import { type EditorSettings, defaultSettings, saveSettings, loadSettings } from "@/lib/settings-db"
+import { MediaManager } from "./media-manager"
 
 interface SettingsPanelProps {
   onSettingsChange: (settings: EditorSettings) => void
@@ -10,6 +11,7 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ onSettingsChange }: SettingsPanelProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [showMediaManager, setShowMediaManager] = useState(false)
   const [settings, setSettings] = useState<EditorSettings>(defaultSettings)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -188,8 +190,30 @@ export function SettingsPanel({ onSettingsChange }: SettingsPanelProps) {
                 ))}
               </div>
             </div>
+
+            {/* Media Library */}
+            <div className="pt-2 border-t border-border">
+              <button
+                onClick={() => {
+                  setIsOpen(false)
+                  setShowMediaManager(true)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-muted/50 text-foreground hover:bg-muted transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                  <circle cx="9" cy="9" r="2" />
+                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                </svg>
+                Manage Media
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {showMediaManager && (
+        <MediaManager onClose={() => setShowMediaManager(false)} />
       )}
     </div>
   )

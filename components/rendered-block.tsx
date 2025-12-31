@@ -1,11 +1,33 @@
 "use client"
 
 import type React from "react"
-
+import { useState, useEffect } from "react"
 import type { Block } from "@/lib/markdown-parser"
+import { useMedia } from "@/hooks/use-media"
 
 interface RenderedBlockProps {
   block: Block
+}
+
+function MediaImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [imageSrc, setImageSrc] = useState<string>(src)
+  const { getMedia } = useMedia()
+
+  useEffect(() => {
+    if (src.startsWith("/media/")) {
+      const mediaId = src.replace("/media/", "")
+      getMedia(mediaId).then((media) => {
+        if (media) {
+          setImageSrc(media.data)
+        }
+      })
+    } else {
+      setImageSrc(src)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src])
+
+  return <img src={imageSrc} alt={alt} className={className} />
 }
 
 function parseInlineMarkdown(text: string): React.ReactNode {
@@ -18,12 +40,11 @@ function parseInlineMarkdown(text: string): React.ReactNode {
     const imageMatch = remaining.match(imageRegex)
     if (imageMatch) {
       parts.push(
-        <img
+        <MediaImage
           key={key++}
           src={imageMatch[2] || "/placeholder.svg"}
           alt={imageMatch[1]}
           className="max-w-full h-auto rounded-lg my-2"
-          onClick={(e) => e.stopPropagation()}
         />,
       )
       remaining = remaining.slice(imageMatch[0].length)
@@ -105,7 +126,7 @@ export function RenderedBlock({ block }: RenderedBlockProps) {
   if (block.type === "image") {
     return (
       <figure className="py-4">
-        <img
+        <MediaImage
           src={block.content || "/placeholder.svg"}
           alt={block.language || ""}
           className="max-w-full h-auto rounded-lg"

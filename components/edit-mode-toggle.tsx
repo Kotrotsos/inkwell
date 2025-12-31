@@ -9,9 +9,10 @@ interface EditModeToggleProps {
   mode: EditMode
   onChange: (mode: EditMode) => void
   onMerge?: () => void
+  backgroundStyle?: React.CSSProperties
 }
 
-export function EditModeToggle({ mode, onChange, onMerge }: EditModeToggleProps) {
+export function EditModeToggle({ mode, onChange, onMerge, backgroundStyle }: EditModeToggleProps) {
   const [showConfirm, setShowConfirm] = useState(false)
 
   const handleMergeClick = () => {
@@ -25,7 +26,7 @@ export function EditModeToggle({ mode, onChange, onMerge }: EditModeToggleProps)
 
   return (
     <>
-    <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+    <div className="flex items-center gap-1 bg-muted rounded-lg p-1" style={backgroundStyle}>
       {/* Quick edit mode - click to edit individual sections */}
       <button
         onClick={() => onChange("quick")}

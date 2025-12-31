@@ -6,6 +6,7 @@ import { SettingsPanel } from "./settings-panel"
 import { DocumentSidebar, type DocumentSidebarRef } from "./document-sidebar"
 import { UserMenu } from "./auth/user-menu"
 import { RenderedBlock } from "./rendered-block"
+import { EditorContextMenu } from "./editor-context-menu"
 import { parseMarkdownToBlocks, type Block } from "@/lib/markdown-parser"
 import { type EditorSettings, defaultSettings } from "@/lib/settings-db"
 import { type Document, saveDocument, getAllDocuments, getDocument } from "@/lib/documents-db"
@@ -52,6 +53,7 @@ export function InlineMarkdownEditor() {
   const [settings, setSettings] = useState<EditorSettings>(defaultSettings)
   const [currentDoc, setCurrentDoc] = useState<Document | null>(null)
   const [sidebarPinned, setSidebarPinned] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const sidebarRef = useRef<DocumentSidebarRef>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const markdownRef = useRef(markdown)
@@ -101,6 +103,45 @@ export function InlineMarkdownEditor() {
       }
     }
   }, [settings.theme])
+
+  // Update URL hash when document changes
+  useEffect(() => {
+    if (currentDoc) {
+      window.history.replaceState(null, "", `#${currentDoc.id}`)
+    }
+  }, [currentDoc])
+
+  // Load document from URL hash on mount
+  useEffect(() => {
+    const loadFromHash = async () => {
+      const hash = window.location.hash.slice(1)
+      if (hash) {
+        const doc = await getDocument(hash)
+        if (doc) {
+          const content = doc.content || defaultMarkdown
+          setCurrentDoc(doc)
+          setMarkdown(content)
+          setBlocks(parseMarkdownToBlocks(content))
+        }
+      }
+    }
+    loadFromHash()
+
+    const handleHashChange = async () => {
+      const hash = window.location.hash.slice(1)
+      if (hash && hash !== currentDocRef.current?.id) {
+        const doc = await getDocument(hash)
+        if (doc) {
+          const content = doc.content || defaultMarkdown
+          setCurrentDoc(doc)
+          setMarkdown(content)
+          setBlocks(parseMarkdownToBlocks(content))
+        }
+      }
+    }
+    window.addEventListener("hashchange", handleHashChange)
+    return () => window.removeEventListener("hashchange", handleHashChange)
+  }, [])
 
   useEffect(() => {
     if (currentDoc) {
@@ -201,18 +242,24 @@ export function InlineMarkdownEditor() {
   }
 
   const startEditing = useCallback(() => {
+    const scrollY = window.scrollY
     setIsEditing(true)
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       if (textareaRef.current) {
-        textareaRef.current.focus()
         adjustTextareaHeight()
+        textareaRef.current.focus({ preventScroll: true })
       }
-    }, 0)
+      window.scrollTo(0, scrollY)
+    })
   }, [])
 
   const stopEditing = useCallback(() => {
+    const scrollY = window.scrollY
     setIsEditing(false)
     setBlocks(parseMarkdownToBlocks(markdown))
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY)
+    })
   }, [markdown])
 
   const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -230,6 +277,36 @@ export function InlineMarkdownEditor() {
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
     }
   }, [])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }, [])
+
+  const insertTextAtCursor = useCallback((text: string) => {
+    if (!textareaRef.current) return
+    const textarea = textareaRef.current
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const newMarkdown = markdown.slice(0, start) + text + markdown.slice(end)
+    setMarkdown(newMarkdown)
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        const newPos = start + text.length
+        textareaRef.current.selectionStart = newPos
+        textareaRef.current.selectionEnd = newPos
+        textareaRef.current.focus({ preventScroll: true })
+      }
+    })
+  }, [markdown])
+
+  const handleInsertLink = useCallback((title: string, url: string) => {
+    insertTextAtCursor(`[${title}](${url})`)
+  }, [insertTextAtCursor])
+
+  const handleInsertImage = useCallback((alt: string, url: string) => {
+    insertTextAtCursor(`![${alt}](${url})`)
+  }, [insertTextAtCursor])
 
   const handleSettingsChange = useCallback((newSettings: EditorSettings) => {
     setSettings(newSettings)
@@ -295,7 +372,12 @@ export function InlineMarkdownEditor() {
                 ref={textareaRef}
                 value={markdown}
                 onChange={handleTextareaChange}
-                onBlur={handleTextareaBlur}
+                onBlur={(e) => {
+                  if (!contextMenu) {
+                    handleTextareaBlur()
+                  }
+                }}
+                onContextMenu={handleContextMenu}
                 className={cn(
                   "w-full bg-muted/50 text-foreground font-mono text-base",
                   "px-4 py-3 rounded-lg",
@@ -325,6 +407,16 @@ export function InlineMarkdownEditor() {
           </article>
         </div>
       </div>
+
+      {contextMenu && (
+        <EditorContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onInsertLink={handleInsertLink}
+          onInsertImage={handleInsertImage}
+        />
+      )}
     </div>
   )
 }
