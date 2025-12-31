@@ -10,7 +10,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono
 const _inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
 export const metadata: Metadata = {
-  title: "Inkwell — Markdown Editor",
+  title: "Inkwell — A Markdown Editor",
   description: "A distraction-free markdown editor with inline editing",
   generator: "v0.app",
   icons: {

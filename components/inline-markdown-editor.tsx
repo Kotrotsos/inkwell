@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useCallback, useEffect, useRef } from "react"
+import { useAuth } from "@clerk/nextjs"
 import { SettingsPanel } from "./settings-panel"
 import { DocumentSidebar, type DocumentSidebarRef } from "./document-sidebar"
 import { UserMenu } from "./auth/user-menu"
@@ -11,6 +12,12 @@ import { parseMarkdownToBlocks, type Block } from "@/lib/markdown-parser"
 import { type EditorSettings, defaultSettings } from "@/lib/settings-db"
 import { type Document, saveDocument, getAllDocuments, getDocument } from "@/lib/documents-db"
 import { cn } from "@/lib/utils"
+
+interface SharedDocument {
+  title: string
+  content: string
+  updatedAt: string
+}
 
 const defaultMarkdown = `# Welcome to Inkwell
 
@@ -54,6 +61,10 @@ export function InlineMarkdownEditor() {
   const [currentDoc, setCurrentDoc] = useState<Document | null>(null)
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [isViewingShared, setIsViewingShared] = useState(false)
+  const [shareId, setShareId] = useState<string | null>(null)
+  const [isSharing, setIsSharing] = useState(false)
+  const { isSignedIn } = useAuth()
   const sidebarRef = useRef<DocumentSidebarRef>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const markdownRef = useRef(markdown)
@@ -116,12 +127,31 @@ export function InlineMarkdownEditor() {
     const loadFromHash = async () => {
       const hash = window.location.hash.slice(1)
       if (hash) {
+        // First try to load as a local document
         const doc = await getDocument(hash)
         if (doc) {
           const content = doc.content || defaultMarkdown
           setCurrentDoc(doc)
           setMarkdown(content)
           setBlocks(parseMarkdownToBlocks(content))
+          setIsViewingShared(false)
+          setShareId(null)
+          return
+        }
+
+        // If not found locally, try to load as a shared document
+        try {
+          const response = await fetch(`/api/share/${hash}`)
+          if (response.ok) {
+            const sharedDoc: SharedDocument = await response.json()
+            setMarkdown(sharedDoc.content)
+            setBlocks(parseMarkdownToBlocks(sharedDoc.content))
+            setCurrentDoc(null)
+            setIsViewingShared(true)
+            setShareId(hash)
+          }
+        } catch {
+          // Not a valid share ID either, ignore
         }
       }
     }
@@ -129,13 +159,38 @@ export function InlineMarkdownEditor() {
 
     const handleHashChange = async () => {
       const hash = window.location.hash.slice(1)
-      if (hash && hash !== currentDocRef.current?.id) {
+      if (!hash) {
+        setIsViewingShared(false)
+        setShareId(null)
+        return
+      }
+
+      if (hash !== currentDocRef.current?.id) {
+        // First try local
         const doc = await getDocument(hash)
         if (doc) {
           const content = doc.content || defaultMarkdown
           setCurrentDoc(doc)
           setMarkdown(content)
           setBlocks(parseMarkdownToBlocks(content))
+          setIsViewingShared(false)
+          setShareId(null)
+          return
+        }
+
+        // Try shared
+        try {
+          const response = await fetch(`/api/share/${hash}`)
+          if (response.ok) {
+            const sharedDoc: SharedDocument = await response.json()
+            setMarkdown(sharedDoc.content)
+            setBlocks(parseMarkdownToBlocks(sharedDoc.content))
+            setCurrentDoc(null)
+            setIsViewingShared(true)
+            setShareId(hash)
+          }
+        } catch {
+          // Ignore
         }
       }
     }
@@ -312,6 +367,28 @@ export function InlineMarkdownEditor() {
     setSettings(newSettings)
   }, [])
 
+  const handleShare = useCallback(async () => {
+    if (!currentDoc?.serverId || !isSignedIn) return
+
+    setIsSharing(true)
+    try {
+      const response = await fetch(`/api/documents/${currentDoc.serverId}/share`, {
+        method: "POST",
+      })
+      if (response.ok) {
+        const { shareId } = await response.json()
+        const shareUrl = `${window.location.origin}/#${shareId}`
+        await navigator.clipboard.writeText(shareUrl)
+        setShareId(shareId)
+        alert(`Share link copied to clipboard!\n\n${shareUrl}`)
+      }
+    } catch (error) {
+      console.error("Failed to share document:", error)
+    } finally {
+      setIsSharing(false)
+    }
+  }, [currentDoc, isSignedIn])
+
   const handleSelectDocument = useCallback(
     async (doc: Document) => {
       await saveCurrentDocument()
@@ -359,15 +436,36 @@ export function InlineMarkdownEditor() {
 
       <div className={`flex-1 transition-all duration-300 ${sidebarPinned ? "ml-72" : ""}`}>
         <div className={`${getContainerClasses()} py-8 md:py-16`}>
-          <header className="mb-8 md:mb-12 flex items-center justify-end">
+          <header className="mb-8 md:mb-12 flex items-center justify-between">
+            {isViewingShared ? (
+              <div className="text-sm text-muted-foreground">
+                Viewing shared document
+              </div>
+            ) : (
+              <div />
+            )}
             <div className="flex items-center gap-3">
+              {currentDoc?.serverId && isSignedIn && !isViewingShared && (
+                <button
+                  onClick={handleShare}
+                  disabled={isSharing}
+                  className={cn(
+                    "px-3 py-1.5 text-sm rounded-lg",
+                    "text-muted-foreground hover:text-foreground",
+                    "hover:bg-muted/50 transition-colors",
+                    "disabled:opacity-50"
+                  )}
+                >
+                  {isSharing ? "Sharing..." : "Share"}
+                </button>
+              )}
               <SettingsPanel onSettingsChange={handleSettingsChange} />
               <UserMenu />
             </div>
           </header>
 
           <article className={`prose-custom ${getContentClasses()}`}>
-            {isEditing ? (
+            {isEditing && !isViewingShared ? (
               <textarea
                 ref={textareaRef}
                 value={markdown}
@@ -389,12 +487,12 @@ export function InlineMarkdownEditor() {
               />
             ) : (
               <div
-                onClick={startEditing}
+                onClick={isViewingShared ? undefined : startEditing}
                 className={cn(
-                  "cursor-text rounded-lg -mx-3 px-3 py-1",
+                  "rounded-lg -mx-3 px-3 py-1",
                   "transition-all duration-200",
-                  "hover:bg-muted/30",
                   "min-h-[200px]",
+                  !isViewingShared && "cursor-text hover:bg-muted/30",
                 )}
               >
                 {blocks
