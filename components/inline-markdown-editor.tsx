@@ -368,22 +368,50 @@ export function InlineMarkdownEditor() {
   }, [])
 
   const handleShare = useCallback(async () => {
-    if (!currentDoc?.serverId || !isSignedIn) return
+    if (!currentDoc || !isSignedIn) return
 
     setIsSharing(true)
     try {
-      const response = await fetch(`/api/documents/${currentDoc.serverId}/share`, {
+      let serverId = currentDoc.serverId
+
+      // If document hasn't been synced yet, sync it first
+      if (!serverId) {
+        const syncResponse = await fetch("/api/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: currentDoc.title,
+            content: currentDoc.content,
+            folderId: currentDoc.folderId,
+            localId: currentDoc.id,
+          }),
+        })
+        if (!syncResponse.ok) {
+          throw new Error("Failed to sync document")
+        }
+        const syncedDoc = await syncResponse.json()
+        serverId = syncedDoc.id
+
+        // Update local doc with serverId
+        const updatedDoc = { ...currentDoc, serverId, syncStatus: "synced" as const, lastSyncedAt: Date.now() }
+        await saveDocument(updatedDoc)
+        setCurrentDoc(updatedDoc)
+      }
+
+      // Now share it
+      const response = await fetch(`/api/documents/${serverId}/share`, {
         method: "POST",
       })
       if (response.ok) {
-        const { shareId } = await response.json()
-        const shareUrl = `${window.location.origin}/#${shareId}`
+        const { shareId: newShareId } = await response.json()
+        const shareUrl = `${window.location.origin}/#${newShareId}`
         await navigator.clipboard.writeText(shareUrl)
-        setShareId(shareId)
+        setShareId(newShareId)
         alert(`Share link copied to clipboard!\n\n${shareUrl}`)
       }
     } catch (error) {
       console.error("Failed to share document:", error)
+      alert("Failed to share document. Please try again.")
     } finally {
       setIsSharing(false)
     }
@@ -445,7 +473,7 @@ export function InlineMarkdownEditor() {
               <div />
             )}
             <div className="flex items-center gap-3">
-              {currentDoc?.serverId && isSignedIn && !isViewingShared && (
+              {currentDoc && isSignedIn && !isViewingShared && (
                 <button
                   onClick={handleShare}
                   disabled={isSharing}
